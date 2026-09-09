@@ -48,3 +48,14 @@ left unfinished. Append as you go; a line or two per entry is right.
 - Editor: click "40h/wk" in the name cell → inline number input; Enter/Save or
   Esc/Cancel; client validates 0–168 before sending; pink Save button (the
   palette's one CTA), neutral Cancel.
+
+## Virtualized grid bug found by human: single massive row
+
+- Symptom: one huge row rendered, rest "buried deep" in the scroll area.
+- Root cause: virtual rows were in normal flow inside tbody{display:grid;
+  height:totalSize}. CSS grid align-content:stretch distributes the free space
+  across the few rendered rows, stretching each to ~800px; measureElement then
+  cached the poisoned heights, compounding it.
+- Fix: position:absolute on tbody rows (scoped to tbody so the sticky header
+  row stays in flow) + translateY from the virtualizer. Rows no longer
+  participate in grid layout, so no stretch and real heights are measured.

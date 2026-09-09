@@ -63,6 +63,17 @@ table.grid tr {
   display: flex;
 }
 
+/* Virtual rows must be removed from grid flow: in-flow rows inside the
+   definite-height grid tbody get stretched by align-content and measure
+   corrupted heights. Absolute positioning keeps them at their translateY
+   offsets and lets measureElement read real row heights. */
+table.grid tbody tr {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+}
+
 table.grid th,
 table.grid td {
   border: 1px solid color-mix(in srgb, var(--color-accent-muted) 20%, transparent);
