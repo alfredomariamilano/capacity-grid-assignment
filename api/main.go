@@ -8,11 +8,12 @@ import (
 	"os"
 	"time"
 
-	"github.com/jackc/pgx/v5/pgxpool"
+	_ "github.com/jackc/pgx/v5/stdlib"
+	"github.com/jmoiron/sqlx"
 )
 
 type server struct {
-	db *pgxpool.Pool
+	db *sqlx.DB
 }
 
 func main() {
@@ -23,14 +24,17 @@ func main() {
 		dsn = "postgres://capacity:capacity@localhost:5432/capacity?sslmode=disable"
 	}
 
-	db, err := pgxpool.New(ctx, dsn)
+	db, err := sqlx.Open("pgx", dsn)
 	if err != nil {
 		log.Fatalf("connect: %v", err)
 	}
 	defer db.Close()
 
 	for i := 0; i < 30; i++ {
-		if err = db.Ping(ctx); err == nil {
+		pingCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+		err = db.PingContext(pingCtx)
+		cancel()
+		if err == nil {
 			break
 		}
 		time.Sleep(time.Second)
@@ -52,7 +56,7 @@ func main() {
 
 func (s *server) handleHealth(w http.ResponseWriter, r *http.Request) {
 	var people int
-	if err := s.db.QueryRow(r.Context(), `SELECT count(*) FROM people`).Scan(&people); err != nil {
+	if err := s.db.GetContext(r.Context(), &people, `SELECT count(*) FROM people`); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
