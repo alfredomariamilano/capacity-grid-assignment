@@ -28,6 +28,9 @@ func testServer(t *testing.T) *server {
 	if err := db.PingContext(ctx); err != nil {
 		t.Fatalf("ping: %v", err)
 	}
+	if _, err := db.ExecContext(ctx, createOverridesTable); err != nil {
+		t.Fatalf("ensure allocation_overrides table: %v", err)
+	}
 	t.Cleanup(func() { db.Close() })
 	return &server{db: db}
 }
@@ -48,6 +51,11 @@ func getCapacity(t *testing.T, s *server, url string) (*httptest.ResponseRecorde
 
 func TestHandleCapacityKnownValues(t *testing.T) {
 	s := testServer(t)
+	// Allocation overrides are test-controlled; start from a clean slate so
+	// leftover overrides from other tests cannot skew the known values.
+	if _, err := s.db.Exec(`DELETE FROM allocation_overrides`); err != nil {
+		t.Fatalf("clear overrides: %v", err)
+	}
 	rec, resp := getCapacity(t, s, "/api/capacity?from=2025-12-29&to=2026-01-16")
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200; body: %s", rec.Code, rec.Body)

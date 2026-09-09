@@ -45,10 +45,15 @@ func main() {
 
 	s := &server{db: db}
 
+	if _, err := db.ExecContext(ctx, createOverridesTable); err != nil {
+		log.Fatalf("create allocation_overrides: %v", err)
+	}
+
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/health", s.handleHealth)
 	mux.HandleFunc("GET /api/capacity", s.handleCapacity)
 	mux.HandleFunc("PATCH /api/people/{id}", s.handleUpdatePerson)
+	mux.HandleFunc("PATCH /api/people/{id}/allocations/{week}", s.handleUpdateAllocation)
 
 	log.Println("listening on :8080")
 	log.Fatal(http.ListenAndServe(":8080", mux))

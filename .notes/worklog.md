@@ -100,3 +100,18 @@ left unfinished. Append as you go; a line or two per entry is right.
 - The applied range lives in the URL (?from=YYYY-MM-DD&to=YYYY-MM-DD):
   loaded on mount, rewritten via history.replaceState on "Show". Invalid
   params in the URL fall back to the default range. Makes views shareable.
+
+## Editable allocated hours (per week), reusing WeeklyHoursEditor
+
+- Managers can now edit the allocated figure per person/week from the grid
+  (the "45h" part of a cell), not just capacity. Same popover editor.
+- Storage: assignments are computed data and the schema is frozen, so edits
+  live in an allocation_overrides table created by the API at startup
+  (CREATE TABLE IF NOT EXISTS; no schema/seed file touched). The capacity
+  query COALESCEs override over computed: COALESCE(o.hours, SUM(...), 0).
+- New endpoint PATCH /api/people/{id}/allocations/{week} {"hours": 0-168};
+  upsert; returns {id, week, hours}. GET /api/capacity already reflects it.
+- Frontend: WeeklyHoursEditor gained an optional week prop (capacity mode
+  unchanged); no refetch after either edit — cache patch via setQueryData.
+- No reset-to-computed yet (would be a per-cell "x" affordance); flagged.
+- No git used at human request this round; changes are uncommitted.

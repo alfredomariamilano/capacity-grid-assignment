@@ -71,13 +71,16 @@ week_days AS (
   SELECT week_start, (week_start + n)::date AS day
   FROM weeks, generate_series(0, 4) AS n
 )
-SELECT p.id, p.name, p.weekly_hours::float8, wd.week_start, COALESCE(SUM(a.hours_per_day), 0)::float8 AS allocated
+SELECT p.id, p.name, p.weekly_hours::float8, wd.week_start, COALESCE(o.hours::float8, SUM(a.hours_per_day), 0)::float8 AS allocated
 FROM people p
 CROSS JOIN week_days wd
 LEFT JOIN assignments a
   ON a.person_id = p.id
  AND wd.day BETWEEN a.start_date AND a.end_date
-GROUP BY p.id, p.name, p.weekly_hours, wd.week_start
+LEFT JOIN allocation_overrides o
+  ON o.person_id = p.id
+ AND o.week_start = wd.week_start
+GROUP BY p.id, p.name, p.weekly_hours, wd.week_start, o.hours
 ORDER BY p.name, p.id, wd.week_start`
 
 	rows := []capacityRow{}

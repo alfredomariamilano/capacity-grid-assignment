@@ -46,6 +46,7 @@ export function CapacityGrid({ from, to }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [editTarget, setEditTarget] = useState<{
     person: Person
+    week?: string
     top: number
     left: number
   } | null>(null)
@@ -97,9 +98,20 @@ export function CapacityGrid({ from, to }: Props) {
         cell: (info) => {
           const allocated = info.getValue<number>()
           const person = info.row.original
+          const weekId = info.column.id
           return (
             <span>
-              {formatHours(allocated)} / {formatHours(person.weeklyHours)}
+              <button
+                type="button"
+                className="hours"
+                onClick={(e) => {
+                  const rect = e.currentTarget.getBoundingClientRect()
+                  setEditTarget({ person, week: weekId, top: rect.bottom + 4, left: rect.left })
+                }}
+              >
+                {formatHours(allocated)}h
+              </button>{' '}
+              / {formatHours(person.weeklyHours)}
             </span>
           )
         },
@@ -171,10 +183,11 @@ export function CapacityGrid({ from, to }: Props) {
       </div>
       {editTarget && (
         <WeeklyHoursEditor
-          key={editTarget.person.id}
+          key={`${editTarget.person.id}-${editTarget.week ?? 'wk'}`}
           person={editTarget.person}
           from={from}
           to={to}
+          week={editTarget.week}
           anchor={{ top: editTarget.top, left: editTarget.left }}
           onClose={() => setEditTarget(null)}
         />

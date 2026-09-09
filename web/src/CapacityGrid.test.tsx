@@ -72,11 +72,11 @@ describe('CapacityGrid', () => {
     stubCapacityFetch()
     renderGrid()
 
-    const deeCell = (await screen.findByText('45 / 40')).closest('td')
+    const deeCell = (await screen.findByRole('button', { name: '45h' })).closest('td')
     expect(deeCell?.className).toBe('over')
-    const eliCell = screen.getByText('20 / 0').closest('td')
+    const eliCell = screen.getByRole('button', { name: '20h' }).closest('td')
     expect(eliCell?.className).toBe('over')
-    const anaCell = screen.getByText('40 / 40').closest('td')
+    const anaCell = screen.getByRole('button', { name: '40h' }).closest('td')
     expect(anaCell?.className).not.toBe('over')
   })
 
@@ -99,7 +99,7 @@ describe('CapacityGrid', () => {
     const user = userEvent.setup()
     renderGrid()
 
-    await screen.findByText('45 / 40')
+    await screen.findByRole('button', { name: '45h' })
     const deeRow = screen.getByText('Dee Okafor').closest('tr')!
     await user.click(within(deeRow).getByRole('button', { name: '40h/wk' }))
     const input = screen.getByLabelText('Weekly hours for Dee Okafor')
@@ -107,8 +107,10 @@ describe('CapacityGrid', () => {
     await user.type(input, '32')
     await user.click(screen.getByRole('button', { name: 'Save' }))
 
-    const cell = (await screen.findByText('45 / 32')).closest('td')
+    const cell = (await screen.findByRole('button', { name: '45h' })).closest('td')
     expect(cell?.className).toBe('over')
+    // Capacity 32 now shows in every week column of Dee's row.
+    expect(within(deeRow).getAllByText('/ 32')).toHaveLength(2)
 
     const capacityCalls = fetchMock.mock.calls.filter(([input]) =>
       String(input).startsWith('/api/capacity'),
@@ -135,7 +137,7 @@ describe('CapacityGrid', () => {
     const user = userEvent.setup()
     renderGrid()
 
-    await screen.findByText('45 / 40')
+    await screen.findByRole('button', { name: '45h' })
     const deeRow = screen.getByText('Dee Okafor').closest('tr')!
     await user.click(within(deeRow).getByRole('button', { name: '40h/wk' }))
     const input = screen.getByLabelText('Weekly hours for Dee Okafor')
@@ -155,7 +157,7 @@ describe('CapacityGrid', () => {
     const user = userEvent.setup()
     renderGrid()
 
-    await screen.findByText('45 / 40')
+    await screen.findByRole('button', { name: '45h' })
     const anaRow = screen.getByText('Ana Ferreira').closest('tr')!
     const deeRow = screen.getByText('Dee Okafor').closest('tr')!
 
@@ -180,6 +182,47 @@ describe('CapacityGrid', () => {
 
     await screen.findByText('Jan 5')
     expect(screen.queryByText('Dec 29')).toBeNull()
-    expect(screen.queryByText('40 / 40')).toBeNull()
+    expect(screen.queryByRole('button', { name: '40h' })).toBeNull()
+  })
+
+  it('edits allocated hours from a week cell and updates the cell without refetching', async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input)
+      if (url.startsWith('/api/capacity')) {
+        return new Response(JSON.stringify(fixture), { status: 200 })
+      }
+      if (url === '/api/people/4/allocations/2026-01-05' && init?.method === 'PATCH') {
+        return new Response(JSON.stringify({ id: 4, week: '2026-01-05', hours: 32 }), {
+          status: 200,
+        })
+      }
+      return new Response('not found', { status: 404 })
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    const user = userEvent.setup()
+    renderGrid()
+
+    await screen.findByRole('button', { name: '45h' })
+    const deeRow = screen.getByText('Dee Okafor').closest('tr')!
+    await user.click(within(deeRow).getByRole('button', { name: '45h' }))
+    const input = screen.getByLabelText('Allocated hours for Dee Okafor') as HTMLInputElement
+    expect(input.value).toBe('45')
+    await user.clear(input)
+    await user.type(input, '32')
+    await user.click(screen.getByRole('button', { name: 'Save' }))
+
+    const button = await screen.findByRole('button', { name: '32h' })
+    expect(button.closest('td')?.className).not.toBe('over')
+
+    const capacityCalls = fetchMock.mock.calls.filter(([input]) =>
+      String(input).startsWith('/api/capacity'),
+    )
+    expect(capacityCalls).toHaveLength(1)
+    const patchCalls = fetchMock.mock.calls.filter(
+      ([input, init]) =>
+        String(input) === '/api/people/4/allocations/2026-01-05' && init?.method === 'PATCH',
+    )
+    expect(patchCalls).toHaveLength(1)
   })
 })
