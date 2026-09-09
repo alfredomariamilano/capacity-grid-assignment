@@ -72,3 +72,14 @@ left unfinished. Append as you go; a line or two per entry is right.
   the final review's must-fix.
 - Anything a grader should know: the popover is fixed-positioned at click time
   and does not follow the grid if you scroll while editing.
+
+## Date range picker
+
+- App now holds the range state; two date inputs (From/To) + a pink "Show"
+  button apply a new range; the grid's queryKey (and the editor's cache patch)
+  follow from/to, so changing dates refetches the range without touching the
+  grid internals.
+- Client-side validation mirrors the API: both dates required, from <= to,
+  span <= 366 days; inline error in --color-danger, no fetch on invalid submit.
+- Draft inputs keep intermediate typing from firing requests; only an explicit
+  "Show" commits the range.
