@@ -5,12 +5,29 @@ import { CapacityGrid } from './CapacityGrid'
 const DEFAULT_FROM = '2025-12-29'
 const DEFAULT_TO = '2026-01-16'
 const MAX_RANGE_DAYS = 366
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
+
+function isValidRange(from: string, to: string): boolean {
+  if (!DATE_RE.test(from) || !DATE_RE.test(to)) return false
+  if (from > to) return false
+  const days = (new Date(to).getTime() - new Date(from).getTime()) / 86_400_000
+  return days <= MAX_RANGE_DAYS
+}
+
+function readRangeFromUrl(): { from: string; to: string } {
+  const params = new URLSearchParams(window.location.search)
+  const from = params.get('from') ?? ''
+  const to = params.get('to') ?? ''
+  if (isValidRange(from, to)) return { from, to }
+  return { from: DEFAULT_FROM, to: DEFAULT_TO }
+}
 
 export function App() {
-  const [draftFrom, setDraftFrom] = useState(DEFAULT_FROM)
-  const [draftTo, setDraftTo] = useState(DEFAULT_TO)
-  const [from, setFrom] = useState(DEFAULT_FROM)
-  const [to, setTo] = useState(DEFAULT_TO)
+  const initial = readRangeFromUrl()
+  const [draftFrom, setDraftFrom] = useState(initial.from)
+  const [draftTo, setDraftTo] = useState(initial.to)
+  const [from, setFrom] = useState(initial.from)
+  const [to, setTo] = useState(initial.to)
   const [error, setError] = useState<string | null>(null)
 
   const apply = () => {
@@ -31,6 +48,8 @@ export function App() {
     setError(null)
     setFrom(draftFrom)
     setTo(draftTo)
+    const params = new URLSearchParams({ from: draftFrom, to: draftTo })
+    window.history.replaceState(null, '', `?${params.toString()}`)
   }
 
   return (

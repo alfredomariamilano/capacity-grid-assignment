@@ -94,3 +94,9 @@ left unfinished. Append as you go; a line or two per entry is right.
   (fallback to intersecting weeks for sub-week windows, so the grid is never
   empty). Now Jan 1-16 visibly shows Jan 5 + Jan 12 and drops Dec 29.
   API semantics unchanged (weeks intersecting, tests still pin them).
+
+## Search params for the date range
+
+- The applied range lives in the URL (?from=YYYY-MM-DD&to=YYYY-MM-DD):
+  loaded on mount, rewritten via history.replaceState on "Show". Invalid
+  params in the URL fall back to the default range. Makes views shareable.

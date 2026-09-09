@@ -22,6 +22,7 @@ vi.mock('@tanstack/react-virtual', () => ({
 afterEach(() => {
   vi.unstubAllGlobals()
   cleanup()
+  window.history.replaceState(null, '', '/')
 })
 
 function renderApp() {
@@ -89,5 +90,38 @@ describe('App', () => {
     const alert = await screen.findByRole('alert')
     expect(alert.textContent).toContain('From must be before to')
     expect(calls.filter((u) => u.startsWith('/api/capacity'))).toHaveLength(1)
+  })
+
+  it('loads the range from the URL search params', async () => {
+    window.history.replaceState(null, '', '/?from=2026-02-02&to=2026-02-16')
+    const calls = stubFetch()
+    renderApp()
+
+    await screen.findByText('Person')
+    expect(calls[0]).toContain('from=2026-02-02&to=2026-02-16')
+  })
+
+  it('writes the applied range into the search params', async () => {
+    const calls = stubFetch()
+    renderApp()
+
+    await screen.findByText('Person')
+    fireEvent.change(screen.getByLabelText('From'), { target: { value: '2026-01-05' } })
+    fireEvent.change(screen.getByLabelText('To'), { target: { value: '2026-02-06' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Show' }))
+
+    await waitFor(() =>
+      expect(calls.filter((u) => u.startsWith('/api/capacity'))).toHaveLength(2),
+    )
+    expect(window.location.search).toBe('?from=2026-01-05&to=2026-02-06')
+  })
+
+  it('falls back to defaults when the URL params are invalid', async () => {
+    window.history.replaceState(null, '', '/?from=bogus&to=2026-01-16')
+    const calls = stubFetch()
+    renderApp()
+
+    await screen.findByText('Person')
+    expect(calls[0]).toContain('from=2025-12-29&to=2026-01-16')
   })
 })
