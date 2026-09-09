@@ -112,7 +112,20 @@ button.hours:hover {
   border-color: var(--color-primary-pink);
 }
 
-.hours-editor input {
+.hours-popover {
+  position: fixed;
+  z-index: 10;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.5rem 0.6rem;
+  background: var(--color-surface-dark);
+  border: 1px solid color-mix(in srgb, var(--color-accent-muted) 40%, transparent);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.35);
+}
+
+.hours-popover input {
   width: 4.5rem;
   font: inherit;
   padding: 0.2rem 0.4rem;
@@ -148,7 +161,7 @@ button.cancel {
   cursor: pointer;
 }
 
-.hours-editor .error {
+.hours-popover .error {
   color: var(--color-danger);
   margin-left: 0.5rem;
 }

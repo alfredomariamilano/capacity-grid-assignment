@@ -115,4 +115,38 @@ describe('CapacityGrid', () => {
     )
     expect(capacityCalls).toHaveLength(1)
   })
+
+  it('rejects an emptied input with a validation error and no PATCH', async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input)
+      if (url.startsWith('/api/capacity')) {
+        return new Response(JSON.stringify(fixture), { status: 200 })
+      }
+      if (url === '/api/people/4' && init?.method === 'PATCH') {
+        return new Response(
+          JSON.stringify({ id: 4, name: 'Dee Okafor', weeklyHours: 32 }),
+          { status: 200 },
+        )
+      }
+      return new Response('not found', { status: 404 })
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    const user = userEvent.setup()
+    renderGrid()
+
+    await screen.findByText('45 / 40')
+    const deeRow = screen.getByText('Dee Okafor').closest('tr')!
+    await user.click(within(deeRow).getByRole('button', { name: '40h/wk' }))
+    const input = screen.getByLabelText('Weekly hours for Dee Okafor')
+    await user.clear(input)
+    await user.click(screen.getByRole('button', { name: 'Save' }))
+
+    const alert = await screen.findByRole('alert')
+    expect(alert.textContent).toContain('Enter a number between 0 and 168')
+    const patchCalls = fetchMock.mock.calls.filter(
+      ([input, init]) => String(input) === '/api/people/4' && init?.method === 'PATCH',
+    )
+    expect(patchCalls).toHaveLength(0)
+  })
 })

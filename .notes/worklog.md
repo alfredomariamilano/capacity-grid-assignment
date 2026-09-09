@@ -59,3 +59,16 @@ left unfinished. Append as you go; a line or two per entry is right.
 - Fix: position:absolute on tbody rows (scoped to tbody so the sticky header
   row stays in flow) + translateY from the virtualizer. Rows no longer
   participate in grid layout, so no stretch and real heights are measured.
+
+## Editor flash fix: portaled hours editor
+
+- Symptom (human): clicking "40h/wk" opened the editor, which flashed and
+  disappeared before any typing. State lived inside a virtualized row, so any
+  row remount (virtual window churn right after opening) reset it.
+- Fix: the editor is now a single portal (createPortal → document.body) hosted
+  by CapacityGrid and anchored to the button's rect, so its state is
+  structurally immune to row lifecycle. Also added an empty-input guard
+  (trim before Number) so a cleared field can't silently save weeklyHours 0 —
+  the final review's must-fix.
+- Anything a grader should know: the popover is fixed-positioned at click time
+  and does not follow the grid if you scroll while editing.

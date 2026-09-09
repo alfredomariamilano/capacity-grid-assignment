@@ -1,4 +1,4 @@
-import { useRef } from 'react'
+import { useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { tableFeatures, useTable, FlexRender, columnSizingFeature, columnVisibilityFeature } from '@tanstack/react-table'
 import type { ColumnDef } from '@tanstack/react-table'
@@ -44,6 +44,11 @@ const features = tableFeatures({ columnSizingFeature, columnVisibilityFeature })
 
 export function CapacityGrid({ from, to }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
+  const [editTarget, setEditTarget] = useState<{
+    person: Person
+    top: number
+    left: number
+  } | null>(null)
 
   const { data, isPending, isError, error } = useQuery({
     queryKey: capacityQueryKey(from, to),
@@ -58,12 +63,24 @@ export function CapacityGrid({ from, to }: Props) {
       accessorKey: 'name',
       header: 'Person',
       size: 220,
-      cell: (info) => (
-        <span>
-          {info.getValue<string>()}{' '}
-          <WeeklyHoursEditor person={info.row.original} from={from} to={to} />
-        </span>
-      ),
+      cell: (info) => {
+        const person = info.row.original
+        return (
+          <span>
+            {info.getValue<string>()}{' '}
+            <button
+              type="button"
+              className="hours"
+              onClick={(e) => {
+                const rect = e.currentTarget.getBoundingClientRect()
+                setEditTarget({ person, top: rect.bottom + 4, left: rect.left })
+              }}
+            >
+              {person.weeklyHours}h/wk
+            </button>
+          </span>
+        )
+      },
     },
     ...weeks.map(
       (week): ColumnDef<typeof features, Person> => ({
@@ -105,8 +122,9 @@ export function CapacityGrid({ from, to }: Props) {
   if (isError) return <p role="alert">Could not load capacity: {error?.message}</p>
 
   return (
-    <div ref={containerRef} className="grid-scroll">
-      <table className="grid">
+    <>
+      <div ref={containerRef} className="grid-scroll">
+        <table className="grid">
         <thead>
           {table.getHeaderGroups().map((headerGroup) => (
             <tr key={headerGroup.id}>
@@ -143,7 +161,17 @@ export function CapacityGrid({ from, to }: Props) {
             )
           })}
         </tbody>
-      </table>
-    </div>
+        </table>
+      </div>
+      {editTarget && (
+        <WeeklyHoursEditor
+          person={editTarget.person}
+          from={from}
+          to={to}
+          anchor={{ top: editTarget.top, left: editTarget.left }}
+          onClose={() => setEditTarget(null)}
+        />
+      )}
+    </>
   )
 }
