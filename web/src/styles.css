@@ -1,11 +1,22 @@
 :root {
-  color-scheme: light dark;
+  color-scheme: dark;
+  --color-bg-dark: #2E1537;
+  --color-surface-dark: #180828;
+  --color-primary-pink: #E0218A;
+  --color-text-light: #F8E8D8;
+  --color-accent-muted: #D8C8C8;
+  --color-danger: #FF7A7A;
+
   font-family: ui-sans-serif, system-ui, sans-serif;
+  background-color: var(--color-bg-dark);
+  color: var(--color-text-light);
 }
 
 body {
   margin: 0;
   padding: 2rem;
+  background-color: var(--color-bg-dark);
+  color: var(--color-text-light);
 }
 
 h1 {
@@ -15,18 +26,87 @@ h1 {
 
 .range {
   margin: 0 0 1.5rem;
-  opacity: 0.6;
+  color: var(--color-accent-muted);
   font-variant-numeric: tabular-nums;
 }
 
-table {
+.grid-scroll {
+  height: 70vh;
+  overflow: auto;
+  border: 1px solid color-mix(in srgb, var(--color-accent-muted) 30%, transparent);
+  border-radius: 10px;
+  background-color: var(--color-surface-dark);
+}
+
+table.grid {
+  display: grid;
   border-collapse: collapse;
   font-variant-numeric: tabular-nums;
+  width: max-content;
+  min-width: 100%;
 }
 
-th,
-td {
-  border: 1px solid color-mix(in srgb, currentColor 20%, transparent);
+table.grid thead {
+  display: grid;
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background-color: var(--color-surface-dark);
+}
+
+table.grid tbody {
+  display: grid;
+  position: relative;
+}
+
+table.grid tr {
+  display: flex;
+}
+
+table.grid th,
+table.grid td {
+  border: 1px solid color-mix(in srgb, var(--color-accent-muted) 20%, transparent);
+  border-top: none;
+  border-left: none;
   padding: 0.5rem 0.75rem;
   text-align: left;
+  flex-shrink: 0;
+  box-sizing: border-box;
+}
+
+table.grid thead th {
+  color: var(--color-accent-muted);
+  font-weight: 600;
+}
+
+td.over {
+  background: color-mix(in srgb, var(--color-danger) 30%, transparent);
+  font-weight: 600;
+}
+
+button.hours {
+  font: inherit;
+  font-size: 0.8em;
+  border: 1px solid color-mix(in srgb, var(--color-accent-muted) 40%, transparent);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--color-accent-muted);
+  padding: 0.1rem 0.5rem;
+  cursor: pointer;
+  transition: color 0.15s ease, border-color 0.15s ease;
+}
+
+button.hours:hover {
+  color: var(--color-text-light);
+  border-color: var(--color-primary-pink);
+}
+
+.hours-editor input {
+  width: 4.5rem;
+  font: inherit;
+  padding: 0.2rem 0.4rem;
+  border-radius: 6px;
+  border: 1px solid var(--color-accent-muted);
+  background: var(--color-bg-dark);
+  color: var(--color-text-light);
 }

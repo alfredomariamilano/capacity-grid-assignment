@@ -24,3 +24,17 @@ left unfinished. Append as you go; a line or two per entry is right.
 - Tests restore Ana to 40h afterwards so the seed stays pristine.
 - Update via sqlx GetContext (RETURNING row scanned into personResponse;
   sql.ErrNoRows → 404).
+
+## CapacityGrid render (TanStack)
+
+- Data via @tanstack/react-query v5 useQuery (queryKey ['capacity', from, to]);
+  loading/error states from query state.
+- Grid via @tanstack/react-table v9: useTable + tableFeatures({}), columns
+  built from the response's weeks; virtualized rows via @tanstack/react-virtual
+  v3 (sticky header, absolute-positioned rows, measureElement).
+- Cells show "allocated / capacity"; over-allocation is allocated > capacity
+  (strictly — 40/40 is exactly full, not over) with a rose-tinted td.over
+  (--color-danger); zero capacity (Eli) renders "20 / 0" and flags over.
+- Toggl-inspired palette in :root: deep purple bg, surface cards, peach text,
+  pink reserved for CTAs; over-allocation uses rose so pink stays exclusive.
+- Tests mock @tanstack/react-virtual to render all rows (jsdom has no layout).
