@@ -83,3 +83,14 @@ left unfinished. Append as you go; a line or two per entry is right.
   span <= 366 days; inline error in --color-danger, no fetch on invalid submit.
 - Draft inputs keep intermediate typing from firing requests; only an explicit
   "Show" commits the range.
+
+## Date reload fix: show only weeks starting in the range
+
+- Symptom (human): changing dates updated the label but the grid looked
+  unchanged. Root cause: the API returns every week INTERSECTING [from, to];
+  moving the from date inside the same week (e.g. Dec 29 -> Jan 1, same
+  Monday) produces a byte-identical response, so the reload was invisible.
+- Fix: client-side filter shows only weeks whose Monday is within [from, to]
+  (fallback to intersecting weeks for sub-week windows, so the grid is never
+  empty). Now Jan 1-16 visibly shows Jan 5 + Jan 12 and drops Dec 29.
+  API semantics unchanged (weeks intersecting, tests still pin them).

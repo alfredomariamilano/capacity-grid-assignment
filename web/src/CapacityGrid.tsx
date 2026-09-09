@@ -56,7 +56,13 @@ export function CapacityGrid({ from, to }: Props) {
   })
 
   const people = data?.people ?? []
-  const weeks = data?.weeks ?? []
+  const rawWeeks = data?.weeks ?? []
+  // The API returns every week intersecting [from, to]; the grid shows only
+  // weeks that START inside the requested range, so changing the dates always
+  // visibly changes the grid. Fall back to the intersecting weeks when no week
+  // starts in the range (a sub-week window), so the grid is never empty.
+  const weeksInRange = rawWeeks.filter((w) => w >= from && w <= to)
+  const weeks = weeksInRange.length > 0 ? weeksInRange : rawWeeks
 
   const columns: ColumnDef<typeof features, Person>[] = [
     {

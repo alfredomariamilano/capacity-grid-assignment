@@ -168,4 +168,18 @@ describe('CapacityGrid', () => {
     const anaInput = screen.getByLabelText('Weekly hours for Ana Ferreira') as HTMLInputElement
     expect(anaInput.value).toBe('40')
   })
+
+  it('drops weeks that start before the requested from date', async () => {
+    stubCapacityFetch()
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    render(
+      <QueryClientProvider client={queryClient}>
+        <CapacityGrid from="2026-01-01" to="2026-01-16" />
+      </QueryClientProvider>,
+    )
+
+    await screen.findByText('Jan 5')
+    expect(screen.queryByText('Dec 29')).toBeNull()
+    expect(screen.queryByText('40 / 40')).toBeNull()
+  })
 })
