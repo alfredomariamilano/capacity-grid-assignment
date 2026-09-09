@@ -1,4 +1,5 @@
-import { render, screen } from '@testing-library/react'
+import { cleanup, render, screen, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { CapacityGrid } from './CapacityGrid'
@@ -43,6 +44,7 @@ function stubCapacityFetch() {
 
 afterEach(() => {
   vi.unstubAllGlobals()
+  cleanup()
 })
 
 function renderGrid() {
@@ -76,5 +78,41 @@ describe('CapacityGrid', () => {
     expect(eliCell?.className).toBe('over')
     const anaCell = screen.getByText('40 / 40').closest('td')
     expect(anaCell?.className).not.toBe('over')
+  })
+
+  it('updates weekly hours locally after a save, without refetching capacity', async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input)
+      if (url.startsWith('/api/capacity')) {
+        return new Response(JSON.stringify(fixture), { status: 200 })
+      }
+      if (url === '/api/people/4' && init?.method === 'PATCH') {
+        return new Response(
+          JSON.stringify({ id: 4, name: 'Dee Okafor', weeklyHours: 32 }),
+          { status: 200 },
+        )
+      }
+      return new Response('not found', { status: 404 })
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    const user = userEvent.setup()
+    renderGrid()
+
+    await screen.findByText('45 / 40')
+    const deeRow = screen.getByText('Dee Okafor').closest('tr')!
+    await user.click(within(deeRow).getByRole('button', { name: '40h/wk' }))
+    const input = screen.getByLabelText('Weekly hours for Dee Okafor')
+    await user.clear(input)
+    await user.type(input, '32')
+    await user.click(screen.getByRole('button', { name: 'Save' }))
+
+    const cell = (await screen.findByText('45 / 32')).closest('td')
+    expect(cell?.className).toBe('over')
+
+    const capacityCalls = fetchMock.mock.calls.filter(([input]) =>
+      String(input).startsWith('/api/capacity'),
+    )
+    expect(capacityCalls).toHaveLength(1)
   })
 })

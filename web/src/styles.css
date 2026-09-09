@@ -110,3 +110,34 @@ button.hours:hover {
   background: var(--color-bg-dark);
   color: var(--color-text-light);
 }
+
+button.save {
+  background: var(--color-primary-pink);
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  padding: 0.25rem 0.75rem;
+  font: inherit;
+  cursor: pointer;
+}
+
+button.save:disabled,
+button.cancel:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+button.cancel {
+  font: inherit;
+  border: 1px solid color-mix(in srgb, var(--color-accent-muted) 40%, transparent);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--color-accent-muted);
+  padding: 0.25rem 0.75rem;
+  cursor: pointer;
+}
+
+.hours-editor .error {
+  color: var(--color-danger);
+  margin-left: 0.5rem;
+}

@@ -38,3 +38,13 @@ left unfinished. Append as you go; a line or two per entry is right.
 - Toggl-inspired palette in :root: deep purple bg, surface cards, peach text,
   pink reserved for CTAs; over-allocation uses rose so pink stays exclusive.
 - Tests mock @tanstack/react-virtual to render all rows (jsdom has no layout).
+
+## Editing from the grid (TanStack Query)
+
+- useMutation PATCHes /api/people/{id}; onSuccess patches the capacity cache
+  via queryClient.setQueryData — no refetch. Exactly consistent because
+  allocations don't depend on weeklyHours; only the derived over/under
+  display changes. A test pins this: /api/capacity is fetched exactly once.
+- Editor: click "40h/wk" in the name cell → inline number input; Enter/Save or
+  Esc/Cancel; client validates 0–168 before sending; pink Save button (the
+  palette's one CTA), neutral Cancel.
