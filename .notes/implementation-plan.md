@@ -6,7 +6,7 @@
 
 **Architecture:** One SQL query pivots people × ISO weeks with weekday-only hour aggregation in Postgres; the Go API validates the range and reshapes rows into a nested JSON document; the React grid renders that document and applies PATCH responses to local state (no refetch after edits).
 
-**Tech Stack:** Go 1.26 (stdlib `net/http`, pgx/v5), PostgreSQL 17, React 19 + TypeScript + Vite, Go `testing` (in-container), vitest + @testing-library/react.
+**Tech Stack:** Go 1.26 (stdlib `net/http`, sqlx over the pgx stdlib driver), PostgreSQL 17, React 19 + TypeScript + Vite, Go `testing` (in-container), vitest + @testing-library/react.
 
 **Spec:** `README.md` ("What to build", "Ground rules", "When you're done") and `CLAUDE.md` (conventions, critical rules).
 
@@ -15,6 +15,7 @@
 - **NEVER edit** `docker-compose.yml`, `api/Dockerfile`, the `Makefile`, `db/schema.sql`, `db/seed.sql`, or `DECISIONS.md`.
 - **NEVER commit** `.agents/` or `skills-lock.json` (untracked tooling files).
 - Go: return errors, don't panic. Use `writeJSON` for responses. SQL lives in the query string, not assembled from Go strings.
+- **All DB access uses `github.com/jmoiron/sqlx`** (user requirement). `server.db` becomes `*sqlx.DB` over the pgx stdlib driver (`_ "github.com/jackc/pgx/v5/stdlib"`); `main.go`'s connection code changes in Task 2. No go.mod changes needed — sqlx is already a dependency.
 - TypeScript strict mode is on; `web/` is all TypeScript.
 - All work happens on branch `feat/capacity-grid`; commit per task, do not squash.
 - Stack is already running via `make up` (attached, foreground). Rebuild only the api service after Go changes with `docker compose up -d --build api` from a second terminal — never `make down`/`make reset`.
@@ -78,10 +79,11 @@ git commit -m "docs: add implementation plan"
 **Files:**
 - Create: `api/capacity_test.go`
 - Modify: `api/capacity.go` (replace stub)
+- Modify: `api/main.go` (swap pgxpool → sqlx, per Global Constraints)
 - Modify: `.notes/worklog.md` (append entry)
 
 **Interfaces:**
-- Consumes: `server.db` (*pgxpool.Pool), `writeJSON(w, status, v)` from `main.go`.
+- Consumes: `server.db` (*sqlx.DB), `writeJSON(w, status, v)` from `main.go`.
 - Produces: `GET /api/capacity?from=YYYY-MM-DD&to=YYYY-MM-DD` → 200 `capacityResponse`:
   ```json
   {"weeks": ["2025-12-29"], "people": [{"id": 1, "name": "Ana Ferreira", "weeklyHours": 40, "allocations": {"2025-12-29": 40}}]}
@@ -96,13 +98,16 @@ Create `api/capacity_test.go`:
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"testing"
+	"time"
 
-	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/jackc/pgx/v5/stdlib"
+	"github.com/jmoiron/sqlx"
 )
 
 func testServer(t *testing.T) *server {
@@ -111,9 +116,14 @@ func testServer(t *testing.T) *server {
 	if dsn == "" {
 		t.Skip("DATABASE_URL not set; skipping integration test")
 	}
-	db, err := pgxpool.New(t.Context(), dsn)
+	db, err := sqlx.Open("pgx", dsn)
 	if err != nil {
 		t.Fatalf("connect: %v", err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err := db.PingContext(ctx); err != nil {
+		t.Fatalf("ping: %v", err)
 	}
 	t.Cleanup(db.Close)
 	return &server{db: db}
@@ -223,6 +233,16 @@ import (
 	"time"
 )
 
+// capacityRow is one row of the capacity SQL result: a person's allocation for
+// a single week. db tags match the SELECT aliases.
+type capacityRow struct {
+	ID          int       `db:"id"`
+	Name        string    `db:"name"`
+	WeeklyHours float64   `db:"weekly_hours"`
+	WeekStart   time.Time `db:"week_start"`
+	Allocated   float64   `db:"allocated"`
+}
+
 // handleCapacity serves GET /api/capacity?from=YYYY-MM-DD&to=YYYY-MM-DD
 //
 // For every person and every ISO week (Monday start) intersecting the
@@ -269,7 +289,8 @@ func (s *server) handleCapacity(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// One row per person per week. week_days expands each week to Mon–Fri so
-	// weekend days inside an assignment's date range don't count.
+	// weekend days inside an assignment's date range don't count. ::float8
+	// casts make the numeric columns unambiguous under database/sql.
 	const query = `
 WITH weeks AS (
   SELECT generate_series(date_trunc('week', $1::date), date_trunc('week', $2::date), interval '7 days')::date AS week_start
@@ -278,7 +299,7 @@ week_days AS (
   SELECT week_start, (week_start + n)::date AS day
   FROM weeks, generate_series(0, 4) AS n
 )
-SELECT p.id, p.name, p.weekly_hours, wd.week_start, COALESCE(SUM(a.hours_per_day), 0) AS allocated
+SELECT p.id, p.name, p.weekly_hours::float8, wd.week_start, COALESCE(SUM(a.hours_per_day), 0)::float8 AS allocated
 FROM people p
 CROSS JOIN week_days wd
 LEFT JOIN assignments a
@@ -287,48 +308,30 @@ LEFT JOIN assignments a
 GROUP BY p.id, p.name, p.weekly_hours, wd.week_start
 ORDER BY p.name, p.id, wd.week_start`
 
-	rows, err := s.db.Query(r.Context(), query, fromStr, toStr)
-	if err != nil {
+	rows := []capacityRow{}
+	if err := s.db.SelectContext(r.Context(), &rows, query, fromStr, toStr); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	defer rows.Close()
 
 	resp := capacityResponse{Weeks: []string{}, People: []capacityPerson{}}
 	seenWeeks := map[string]bool{}
-	var current *capacityPerson
-
-	for rows.Next() {
-		var (
-			id        int
-			name      string
-			weekly    float64
-			weekStart time.Time
-			allocated float64
-		)
-		if err := rows.Scan(&id, &name, &weekly, &weekStart, &allocated); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		week := weekStart.Format("2006-01-02")
+	for _, row := range rows {
+		week := row.WeekStart.Format("2006-01-02")
 		if !seenWeeks[week] {
 			seenWeeks[week] = true
 			resp.Weeks = append(resp.Weeks, week)
 		}
-		if current == nil || current.ID != id {
+		if len(resp.People) == 0 || resp.People[len(resp.People)-1].ID != row.ID {
 			resp.People = append(resp.People, capacityPerson{
-				ID:          id,
-				Name:        name,
-				WeeklyHours: weekly,
+				ID:          row.ID,
+				Name:        row.Name,
+				WeeklyHours: row.WeeklyHours,
 				Allocations: map[string]float64{},
 			})
-			current = &resp.People[len(resp.People)-1]
 		}
-		current.Allocations[week] = allocated
-	}
-	if err := rows.Err(); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
+		last := &resp.People[len(resp.People)-1]
+		last.Allocations[week] = row.Allocated
 	}
 
 	writeJSON(w, http.StatusOK, resp)
@@ -336,6 +339,81 @@ ORDER BY p.name, p.id, wd.week_start`
 ```
 
 Note: the weeks dedup relies on `ORDER BY p.name, p.id, wd.week_start` — every person has every week (CROSS JOIN), weeks ascend within each person, so the first person contributes all weeks in order.
+
+Also replace `api/main.go` with this sqlx version (pgxpool → `*sqlx.DB` over the pgx stdlib driver; the health check uses `GetContext`):
+
+```go
+package main
+
+import (
+	"context"
+	"encoding/json"
+	"log"
+	"net/http"
+	"os"
+	"time"
+
+	_ "github.com/jackc/pgx/v5/stdlib"
+	"github.com/jmoiron/sqlx"
+)
+
+type server struct {
+	db *sqlx.DB
+}
+
+func main() {
+	ctx := context.Background()
+
+	dsn := os.Getenv("DATABASE_URL")
+	if dsn == "" {
+		dsn = "postgres://capacity:capacity@localhost:5432/capacity?sslmode=disable"
+	}
+
+	db, err := sqlx.Open("pgx", dsn)
+	if err != nil {
+		log.Fatalf("connect: %v", err)
+	}
+	defer db.Close()
+
+	for i := 0; i < 30; i++ {
+		pingCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+		err = db.PingContext(pingCtx)
+		cancel()
+		if err == nil {
+			break
+		}
+		time.Sleep(time.Second)
+	}
+	if err != nil {
+		log.Fatalf("ping: %v", err)
+	}
+
+	s := &server{db: db}
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /api/health", s.handleHealth)
+	mux.HandleFunc("GET /api/capacity", s.handleCapacity)
+	mux.HandleFunc("PATCH /api/people/{id}", s.handleUpdatePerson)
+
+	log.Println("listening on :8080")
+	log.Fatal(http.ListenAndServe(":8080", mux))
+}
+
+func (s *server) handleHealth(w http.ResponseWriter, r *http.Request) {
+	var people int
+	if err := s.db.GetContext(r.Context(), &people, `SELECT count(*) FROM people`); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "people": people})
+}
+
+func writeJSON(w http.ResponseWriter, status int, v any) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	_ = json.NewEncoder(w).Encode(v)
+}
+```
 
 - [ ] **Step 4: Rebuild the api and run the tests**
 
@@ -366,10 +444,12 @@ Append to `.notes/worklog.md`:
 - JSON shape: weeks array + per-person allocations map keyed by week start, so
   the grid gets O(1) cell lookup and capacity stays a person-level value.
 - Capped ranges at 366 days to bound payload size.
+- DB access via sqlx (SelectContext into capacityRow); main.go's server.db is
+  now *sqlx.DB over the pgx stdlib driver.
 ```
 
 ```bash
-git add api/capacity.go api/capacity_test.go .notes/worklog.md
+git add api/capacity.go api/capacity_test.go api/main.go .notes/worklog.md
 git commit -m "feat(api): implement GET /api/capacity"
 ```
 
@@ -497,12 +577,11 @@ Replace `api/people.go` entirely:
 package main
 
 import (
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"net/http"
 	"strconv"
-
-	"github.com/jackc/pgx/v5"
 )
 
 // handleUpdatePerson serves PATCH /api/people/{id}
@@ -511,9 +590,9 @@ import (
 // [0, 168] (hours in a week); 0 is valid. Returns the updated person so the
 // caller can patch its local state without refetching.
 type personResponse struct {
-	ID          int     `json:"id"`
-	Name        string  `json:"name"`
-	WeeklyHours float64 `json:"weeklyHours"`
+	ID          int     `db:"id" json:"id"`
+	Name        string  `db:"name" json:"name"`
+	WeeklyHours float64 `db:"weekly_hours" json:"weeklyHours"`
 }
 
 type updatePersonRequest struct {
@@ -542,11 +621,11 @@ func (s *server) handleUpdatePerson(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var p personResponse
-	err = s.db.QueryRow(r.Context(),
+	err = s.db.GetContext(r.Context(), &p,
 		`UPDATE people SET weekly_hours = $1 WHERE id = $2 RETURNING id, name, weekly_hours`,
 		*req.WeeklyHours, id,
-	).Scan(&p.ID, &p.Name, &p.WeeklyHours)
-	if errors.Is(err, pgx.ErrNoRows) {
+	)
+	if errors.Is(err, sql.ErrNoRows) {
 		http.Error(w, "person not found", http.StatusNotFound)
 		return
 	}
@@ -590,6 +669,8 @@ Append to `.notes/worklog.md`:
 - Returns the updated person; the grid patches local state from it instead of
   refetching the whole range.
 - Tests restore Ana to 40h afterwards so the seed stays pristine.
+- Update via sqlx GetContext (RETURNING row scanned into personResponse;
+  sql.ErrNoRows → 404).
 ```
 
 ```bash
