@@ -987,7 +987,9 @@ git commit -m "feat(web): render capacity grid"
 
 ---
 
-### Task 5: Edit weekly hours from the grid (TDD)
+### Task 5: Edit weekly hours from the grid with TanStack Query (TDD)
+
+> **REWRITTEN (human requirement):** editing uses `useMutation` + `queryClient.setQueryData` (server-authoritative local patch — allocations don't depend on weeklyHours, so no refetch; the test pins "capacity fetched exactly once"). The authoritative task spec is `.superpowers/sdd/implementation-plan/task-5-brief.md` — the step-by-step text below this header is superseded.
 
 **Files:**
 - Modify: `web/src/CapacityGrid.test.tsx` (add editing test)
@@ -995,8 +997,8 @@ git commit -m "feat(web): render capacity grid"
 - Modify: `.notes/worklog.md` (append entry)
 
 **Interfaces:**
-- Consumes: `PATCH /api/people/{id}` from Task 3 (returns `Person`); `Person` type and `handleSaved` prop contract from Task 4.
-- Produces: `WeeklyHoursEditor` with props `{person: Person, onSaved: (updated: Person) => void}`.
+- Consumes: `PATCH /api/people/{id}` from Task 3 (returns `Person`); `Person` type and `capacityQueryKey(from, to)` from Task 4.
+- Produces: `WeeklyHoursEditor` with props `{person: Person, from: string, to: string}`.
 
 - [ ] **Step 1: Write the failing test**
 
