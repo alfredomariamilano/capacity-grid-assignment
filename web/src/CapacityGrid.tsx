@@ -165,6 +165,7 @@ export function CapacityGrid({ from, to }: Props) {
       </div>
       {editTarget && (
         <WeeklyHoursEditor
+          key={editTarget.person.id}
           person={editTarget.person}
           from={from}
           to={to}

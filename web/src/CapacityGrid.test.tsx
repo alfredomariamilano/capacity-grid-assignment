@@ -149,4 +149,23 @@ describe('CapacityGrid', () => {
     )
     expect(patchCalls).toHaveLength(0)
   })
+
+  it('re-seeds the editor when retargeted to another person', async () => {
+    stubCapacityFetch()
+    const user = userEvent.setup()
+    renderGrid()
+
+    await screen.findByText('45 / 40')
+    const anaRow = screen.getByText('Ana Ferreira').closest('tr')!
+    const deeRow = screen.getByText('Dee Okafor').closest('tr')!
+
+    await user.click(within(deeRow).getByRole('button', { name: '40h/wk' }))
+    const deeInput = screen.getByLabelText('Weekly hours for Dee Okafor')
+    await user.clear(deeInput)
+    await user.type(deeInput, '99')
+
+    await user.click(within(anaRow).getByRole('button', { name: '40h/wk' }))
+    const anaInput = screen.getByLabelText('Weekly hours for Ana Ferreira') as HTMLInputElement
+    expect(anaInput.value).toBe('40')
+  })
 })
