@@ -106,7 +106,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/jackc/pgx/v5/stdlib"
+	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/jmoiron/sqlx"
 )
 
@@ -125,7 +125,7 @@ func testServer(t *testing.T) *server {
 	if err := db.PingContext(ctx); err != nil {
 		t.Fatalf("ping: %v", err)
 	}
-	t.Cleanup(db.Close)
+	t.Cleanup(func() { db.Close() })
 	return &server{db: db}
 }
 
@@ -680,20 +680,23 @@ git commit -m "feat(api): implement PATCH /api/people/{id}"
 
 ---
 
-### Task 4: `CapacityGrid` render + vitest setup (TDD)
+### Task 4: `CapacityGrid` render with TanStack Query/Table/Virtual (TDD)
+
+> **REWRITTEN (human requirement):** frontend uses `@tanstack/react-query` v5, `@tanstack/react-table` v9 (`useTable` + `tableFeatures` + `<FlexRender>`), `@tanstack/react-virtual` v3, plus the Toggl palette below. The authoritative task spec is `.superpowers/sdd/implementation-plan/task-4-brief.md` — the step-by-step text below this header is superseded. Palette (CSS variables in `:root`, dark-first): `--color-bg-dark: #2E1537`, `--color-surface-dark: #180828`, `--color-primary-pink: #E0218A` (CTAs only), `--color-text-light: #F8E8D8`, `--color-accent-muted: #D8C8C8`, plus `--color-danger` for over-allocation (pink is reserved for interactions).
 
 **Files:**
-- Modify: `web/package.json` (via npm install + script add)
+- Modify: `web/package.json` (add `"test": "vitest run"`; devDeps: vitest, @testing-library/react, @testing-library/user-event, jsdom — install in-container)
 - Create: `web/vitest.config.ts`
 - Create: `web/src/CapacityGrid.test.tsx`
 - Modify: `web/src/CapacityGrid.tsx` (replace stub)
+- Modify: `web/src/main.tsx` (wrap app in `QueryClientProvider`)
 - Create: `web/src/WeeklyHoursEditor.tsx` (minimal placeholder; Task 5 replaces it)
-- Modify: `web/src/styles.css` (append grid styles)
+- Modify: `web/src/styles.css` (Toggl palette + grid styles)
 - Modify: `.notes/worklog.md` (append entry)
 
 **Interfaces:**
 - Consumes: `GET /api/capacity` response from Task 2.
-- Produces: exported `Person` type (`{id: number, name: string, weeklyHours: number, allocations: Record<string, number>}`) consumed by `WeeklyHoursEditor`; `formatHours`, `formatWeek` helpers.
+- Produces: exported `Person` type, `capacityQueryKey(from, to)`, `formatHours`, `formatWeek`; `WeeklyHoursEditor` with props `{person, from, to}` (Task 5 implements editing).
 
 - [ ] **Step 1: Install test dependencies and add the test script**
 
